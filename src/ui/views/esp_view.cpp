@@ -28,8 +28,32 @@ namespace aether {
                 ImGui::Checkbox("Enabled", &cfg.enabled);
                 ImGui::Checkbox("Show Snaplines", &cfg.show_snaplines);
                 ImGui::Checkbox("Show Name", &cfg.show_name);
-                ImGui::Checkbox("Show Box 2D", &cfg.show_box_2d);
-                ImGui::Checkbox("Show Health Bar", &cfg.show_health_bar);
+                if (ImGui::TreeNode("Box Settings")) {
+                    ImGui::Checkbox("Show Box 2D", &cfg.show_box_2d);
+                    ImGui::ColorEdit4("Box Color", (float*)&cfg.box_color,
+                        ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
+                    ImGui::ColorEdit4("Outline Color", (float*)&cfg.box_outline_color,
+                        ImGuiColorEditFlags_AlphaBar | ImGuiColorEditFlags_AlphaPreviewHalf);
+                    ImGui::SliderFloat("Box Thickness", &cfg.box_thickness, 0.1f, 3.0f);
+                    ImGui::SliderFloat("Outline Thickness", &cfg.box_outline_thickness, 0.1f, 3.0f);
+                    ImGui::SliderFloat("Horizontal Offset", &cfg.healthbar_offset_x,-10.0f, 10.0f, "%.1f");
+                    ImGui::TreePop();
+                }
+
+                if (ImGui::TreeNode("Healthbar Settings")) {
+                    ImGui::Checkbox("Show Health Bar", &cfg.show_health_bar);
+                    ImGui::Checkbox("Outline", &cfg.healthbar_outline);
+
+                    if (cfg.healthbar_outline) {
+                        ImGui::ColorEdit4("Outline Color", (float*)&cfg.healthbar_outline_color,
+                            ImGuiColorEditFlags_AlphaBar |
+                            ImGuiColorEditFlags_AlphaPreviewHalf);
+                        ImGui::SliderFloat("Outline Thickness", &cfg.healthbar_outline_thickness, 0.2f, 1.5f);
+                        ImGui::SliderFloat("Vertical Offset", &cfg.name_offset_y, -20.0f, 20.0f, "%.1f");
+                        ImGui::SliderFloat("Healthbar Thickness", &cfg.healthbar_thickness, 1.0f, 5.0f);
+                    }
+                    ImGui::TreePop();
+                }
 
 #ifdef _DEBUG
                 ImGui::Checkbox("Show Hitboxes", &cfg.show_hitboxes);
@@ -134,37 +158,65 @@ namespace aether {
 
             const auto name{ player->get_name() };
             const auto name_size{ ImGui::CalcTextSize(name) };
-
-            draw_list.AddText({ left + (right - left) * 0.5f - name_size.x * 0.5f, bottom - name_size.y - 10.0f}, ImColor(255, 255, 255, 200), name);
+            const ImVec2 name_pos{left + (right - left) * 0.5f - name_size.x * 0.5f, bottom - name_size.y + cfg.name_offset_y};
+            draw_list.AddText(name_pos, ImColor(255, 255, 255, 255), name);
 
             ImGui::PopFont();
         }
 
         if (cfg.show_box_2d) {
-            draw_list.AddRect({ left, top }, { right, bottom }, ImColor(10, 10, 10, 200), 0.0f, ImDrawFlags_RoundCornersNone, 3.0f);
-            draw_list.AddRect({ left, top }, { right, bottom }, ImColor(120, 81, 169, 200), 0.0f, ImDrawFlags_RoundCornersNone, 1.0f);
+            // outline
+            draw_list.AddRect(
+                { left - 1, top - 1 },
+                { right + 1, bottom + 1 },
+                ImColor(cfg.box_outline_color),
+                0.0f,
+                ImDrawFlags_RoundCornersNone,
+                cfg.box_outline_thickness
+            );
+
+            // box
+            draw_list.AddRect(
+                { left, top },
+                { right, bottom },
+                ImColor(cfg.box_color),
+                0.0f,
+                ImDrawFlags_RoundCornersNone,
+                cfg.box_thickness
+            );
         }
 
         if (cfg.show_health_bar) {
-            const auto health{ static_cast<float>(player_pawn->health()) / 100.0f };
+            const float health{ static_cast<float>(player_pawn->health()) / 100.0f };
+            const float health_height = (bottom - top) * health;
+            const float healthbar_left = left - cfg.healthbar_thickness - cfg.healthbar_offset_x;
 
-            ImColor health_colour{ 0, 0, 0, 200 };
-            if (health > 0.5f) {
-                health_colour.Value.x = (1.0f - health) * 2.0f;
-                health_colour.Value.y = 1.0f;
+            if (cfg.healthbar_outline) {
+                const float outline_offset = cfg.healthbar_outline_thickness * 0.5f;
+                draw_list.AddRect(
+                    {
+                        healthbar_left - outline_offset,
+                        top - outline_offset
+                    },
+            {
+                healthbar_left + cfg.healthbar_thickness + outline_offset,
+                top + health_height + outline_offset
+            },
+                    ImColor(cfg.healthbar_outline_color),
+                    0.0f,
+                    ImDrawFlags_RoundCornersNone,
+                    cfg.healthbar_outline_thickness
+                );
             }
-            else {
-                health_colour.Value.x = 1.0f;
-                health_colour.Value.y = health * 2.0f;
-            }
 
-            ImRect health_bar_rect{
-                { left - 6.0f, top - (top - bottom) * health },
-                { left - 5.0f, top }
-            };
+            ImColor health_colour = ImColor::HSV(health * 0.33f, 1.0f, 1.0f);
+            health_colour.Value.w = 0.8f;
 
-            draw_list.AddRectFilled(health_bar_rect.Min - ImVec2{ 1.0f, 1.0f }, health_bar_rect.Max + ImVec2{ 1.0f, 1.0f }, ImColor(10, 10, 10, 200), 0.0f, ImDrawFlags_RoundCornersNone);
-            draw_list.AddRectFilled(health_bar_rect.Min, health_bar_rect.Max, health_colour, 0.0f, ImDrawFlags_RoundCornersNone);
+            draw_list.AddRectFilled(
+                { healthbar_left, top },
+                { healthbar_left + cfg.healthbar_thickness, top + health_height },
+                health_colour
+            );
         }
 
         if (cfg.show_hitboxes) {

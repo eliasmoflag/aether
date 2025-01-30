@@ -41,6 +41,9 @@ namespace aether {
             ImGui::Checkbox("Show FOV", &cfg.show_fov);
             ImGui::SliderFloat("FOV", &cfg.fov, 1.0f, 90.0f, "%.1f");
             ImGui::SliderFloat("DPS", &cfg.dps, 0.0f, 25.0f, "%.1f");
+			if (ImGui::Button("unload")) {
+				context::get().queue_shutdown();
+			}
         }
         ImGui::End();
 	}
